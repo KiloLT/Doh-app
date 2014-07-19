@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<!--
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+     KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+-->
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="format-detection" content="telephone=no" />
+        <!-- WARNING: for iOS 7, remove the width=device-width and height=device-height attributes. See https://issues.apache.org/jira/browse/CB-4323 -->
+        <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi" />
+        <link rel="stylesheet" type="text/css" href="css/index.css" />
+        <title>Doh moments</title>
+    </head>
+    <body>
+
+        <div class='page-container'>
+
+            <!--Home page-->
+            <div class='transition page stage-center' id='home'>
+                <div id='statsTrigger'>
+                    Your stats 
+                    <img src="img/dropdown.png" alt="Dropdown"/>
+                </div>
+                <br/>
+                <h1>Push to <span>track moments</span></h1>
+                <div id='buttonHolder'>
+                    <img src="img/button.png" alt='Button' id='button'/>
+                </div>
+                <div class="pushButton">
+                    Push
+                </div>
+                <div class="winLoss">
+                    <div class="loss">Lose</div>
+                    <div class="separator"></div>
+                    <div class="win">Win</div>
+                </div>
+            </div>        
+            <!--Main Menu-->
+            <div class='transition page stage-left' id='mainMenu'>
+                <h1>Meniu</h1>
+                <div class='changePage' data-target='home'><span>&bull;</span> Dashboard</div>
+                <div class='changePage' data-target='stats'><span>&bull;</span> My stats</div>
+                <div class='changePage' data-target='calendar'><span>&bull;</span> Calendar</div>
+                <div class='changePage' data-target='log'><span>&bull;</span> Log moments</div>
+                <div class='changePage'><span>&bull;</span> Loss of control</div>
+            </div>
+            <!--Calendar-->
+            <div class='transition page stage-right' id='calendar'>
+                <h1>Calendar</h1>
+
+            </div>
+            <!--Save loss-->
+            <div class='transition page stage-right' id='saveLoss'>
+                <h1>Log moment</h1>
+                <label for="lossDate">When?</label>
+                <select name="lossDate" class="lossDate">
+                    <option value="1">Now</option>
+                    <option value="2">Today</option>
+                    <option value="3">Yesterday</option>
+                </select>
+                <div class="newMealBlock">
+                    <label for="lossDate">What?</label>
+                    <input type="text" class="newMeal" placeholder="Type in"/>
+                </div>
+                <div class="selectedMeal">
+                    <div class="mealTitle"></div>
+                    <img src=""/>
+                </div>
+                <button class="saveMoment">Log</button>
+            </div>
+            <!--Log moments-->
+            <div class='transition page stage-right' id='log'>
+                <h1>Log moment</h1>
+                <div class="swipeHolder" data-position="1"></div>
+            </div>
+            <!--Stats page-->
+            <div class='transition page stage-top' id='stats'>
+                <h1>My stats</h1>
+
+            </div>
+            <!--Score page-->
+            <div class='transition page stage-top' id='score'>
+                <h1>Last 7 days</h1>
+                <div class="scoreHeading">
+                    Total moments
+                </div>
+                <div class="scoreTotal">
+                    0                    
+                </div>
+                <div class="scores">
+                    <div class="winScore">Wins: <span>0</span></div>
+                    <div class="lossScore">Loses: <span>0</span></div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class='footer'>
+            <div class='wrapper'>
+                <div class='backIcon'>
+                    <img src='img/back.png' alt='Back'/>
+                </div>
+                <div class='menuIcon'>
+                    <img src='img/menuIcon.png' alt='Menu'/>
+                </div>
+            </div>
+        </div>
+
+        <div id='mainContent'></div>
+
+        <script type="text/javascript" src="phonegap.js"></script>
+        <script type="text/javascript" src="js/zepto.min.js"></script>
+        <script type="text/javascript" src="js/iscroll.js"></script>
+        <script type="text/javascript" src="js/raphael.js"></script>
+        <!--<script type="text/javascript" src="js/swipe.js"></script>-->
+        <script type="text/javascript" src="js/index.js"></script>
+
+        <script type="text/javascript">
+            var dbShell;
+            var angle = 0;
+            var speed = 30;
+            var tapped = true;
+            var waitingForMoment = false;
+            var selectedMeal = 0;
+            var appConfig = {
+                phone: '',
+                deviceId: '',
+                lostControl: '',
+                signedUp: ''
+            };
+            var loadedItems = [];
+            var lastPage = null;
+
+            app.initialize();
+            document.addEventListener("deviceready", onDeviceReady, false);
+
+            function spinWheel() {
+                if (!tapped)
+                    return false;
+                angle += 1;
+                window.img.animate({transform: "r" + angle}, 1, "<>");
+                setTimeout("spinWheel();", speed);
+            }
+
+            function releaseMoment() {
+                if (waitingForMoment) {
+                    $('.winLoss').hide();
+                    $('.pushButton').show();
+                    speed = 30;
+                    $('#home h1').html('Push to <span>track moments</span>');
+                }
+            }
+
+            function loadFoodItems() {
+
+                dbShell.transaction(function(tx) {
+                    tx.executeSql("SELECT * FROM foodItems ORDER BY momentCount DESC", [], function(tx, results) {
+                        var html = '<div id="momentFirst" class="moments transition stage-center swipeElement">';
+                        var momentPage = 1;
+                        for (var i = 0; i < results.rows.length; i++) {
+                            loadedItems[results.rows.item(i).id] = results.rows.item(i);
+                            html += '<div class="moment" data-id="' + results.rows.item(i).id + '"><div class="momentTitle">' + results.rows.item(i).title + '</div><img src="' + results.rows.item(i).photo + '"/><div class="momentCount">Moments: ' + results.rows.item(i).momentCount + '</div></div>';
+                            if ((i + 1) % 5 == 0 && (i + 1) < results.rows.length) {
+                                momentPage += 1;
+                                html += '<div class="moment" data-id="-1"><div class="momentTitle" style="border-bottom:2px solid #f0f0f0;">Add your own</div><img src="img/new.jpg"/></div>';
+                                html += "</div>"
+                                html += '<div class="moments transition stage-right swipeElement">';
+                            }
+                        }
+
+                        html += "</div>";
+
+                        html += '<div class="indicators">'
+                        html += '<span class="active">&bull;</span>';
+                        for (i = 1; i < momentPage; i++) {
+                            html += '<span>&bull;</span>';
+                        }
+                        html += '</div>';
+
+                        $('#log .swipeHolder').data('position', 1).html(html);
+                        $('#log .moment').tap(function() {
+                            selectedMeal = $(this).data('id');
+                            $('.selectedMeal img').attr('src', $(this).children('img').attr('src'));
+                            $('.selectedMeal .mealTitle').html($(this).children('.momentTitle').html());
+                            if (selectedMeal <= 0) {
+                                $('.selectedMeal').hide();
+                                $('.newMealBlock').show();
+                            } else {
+                                $('.selectedMeal').show();
+                                $('.newMealBlock').hide();
+                                $('.newMeal').focus();
+                            }
+                            changePage("saveLoss");
+                            lastPage = "log";
+                        });
+
+
+
+                    }, dbErrorHandler);
+                }, dbErrorHandler);
+
+            }
+
+            function triggerMoment() {
+                $('#home h1').html('What has<span>happened?</span>');
+                speed = 1;
+                navigator.notification.vibrate(300);
+                $('.pushButton').hide();
+                $('.winLoss').show();
+                waitingForMoment = true;
+                setTimeout("releaseMoment();", 7000);
+            }
+
+            function updateScorePage() {
+                dbShell.transaction(function(tx) {
+                    tx.executeSql("SELECT * FROM moments", [], function(tx, results) {
+                        var wins = 0;
+                        var losses = 0;
+                        for (var i = 0; i < results.rows.length; i++) {
+                            if (results.rows.item(i).type == 1) {
+                                losses += 1;
+                            } else {
+                                wins += 1;
+                            }
+                        }
+                        var total = wins + losses;
+                        $('.winScore span').html(parseInt(wins));
+                        $('.lossScore span').html(parseInt(losses));
+                        $('.scoreTotal').html(total);
+                    }, dbErrorHandler);
+                }, dbErrorHandler);
+            }
+
+            function changePage(pageId) {
+                if (pageId == "score") {
+                    updateScorePage();
+                }
+                if (pageId != "home") {
+                    $('.backIcon').show();
+                } else {
+                    $('.backIcon').hide();
+                }
+                $('#mainMenu').removeClass('stage-center').addClass('stage-left');
+                $('.page.stage-center').addClass('stage-right').removeClass('stage-center');
+                $('#' + pageId).removeClass('stage-right').removeClass('stage-top').addClass('stage-center');
+                if (pageId != "saveLoss") {
+                    lastPage = null;
+                }
+            }
+
+            function trackLoss() {
+                loadFoodItems();
+                changePage('log');
+            }
+
+            function saveLoss() {
+                var currentDate = new Date().toJSON().slice(0, 16);
+
+                if (parseInt(selectedMeal) < 0) {
+                    var newMeal = $('.newMeal').val();
+                    if (newMeal.length < 3) {
+                        alert('You must enter what you ate or drank.');
+                        return false;
+                    } else {
+                        dbShell.transaction(function(tx) {
+                            tx.executeSql("INSERT INTO foodItems(title,photo,momentCount) values (?,?,?)", [newMeal, "img/custom.jpg", 1], function(tx, results) {
+                                tx.executeSql("INSERT INTO moments(itemId,type,created) values (?,?,?)", [parseInt(results.insertId), 1, currentDate], renderEntries, dbErrorHandler);
+                                changePage('score');
+                                $('.newMeal').val('');
+                            }, dbErrorHandler);
+                        }, dbErrorHandler);
+                    }
+                } else {
+                    dbShell.transaction(function(tx) {
+                        if (selectedMeal > 0) {
+                            tx.executeSql("UPDATE foodItems set momentCount = momentCount+1 where id = ?", [parseInt(selectedMeal)], emptyCallback, dbErrorHandler);
+                        }
+                        tx.executeSql("INSERT INTO moments(itemId,type,created) values (?,?,?)", [parseInt(selectedMeal), 1, currentDate], renderEntries, dbErrorHandler);
+                        selectedMeal = 0;
+                        changePage('score');
+                    }, dbErrorHandler);
+                }
+
+            }
+
+            function trackWin() {
+                var currentDate = new Date().toJSON().slice(0, 16);
+                dbShell.transaction(function(tx) {
+                    tx.executeSql("INSERT INTO moments(type,created) values (?,?)", [2, currentDate], renderEntries, dbErrorHandler);
+                }, dbErrorHandler);
+                changePage('score');
+            }
+
+            function onDeviceReady() {
+                windowWidth = window.innerWidth;
+                windowHeight = window.innerHeight;
+
+                var pixelRatio = window.devicePixelRatio || 1;
+
+                var src = document.getElementById("button").src;
+                document.getElementById("buttonHolder").innerHTML = "";
+                var R = Raphael("buttonHolder", windowWidth, windowHeight);
+                marginLeft = ((windowWidth - 320) / 2) - 20;
+
+                window.img = R.image(src, marginLeft, 0, 320, 320);
+
+                setTimeout(function() {
+                    spinWheel();
+                }, 3000);
+
+                $('#buttonHolder').longTap(function() {
+                    if (speed == 30) {
+                        triggerMoment();
+                    } else {
+                        speed = 30;
+                    }
+                    $('#statsPage').addClass('stage-top').removeClass('stage-center');
+                });
+
+                $('.changePage').tap(function() {
+                    changePage($(this).data('target'));
+                });
+
+                $('.menuIcon').tap(function() {
+                    $('.page.stage-center').addClass('stage-right').removeClass('stage-center');
+                    $('.backIcon').show();
+                    $('#mainMenu').removeClass('stage-left').addClass('stage-center');
+                });
+
+                $('#statsTrigger').swipeDown(function() {
+                    $('#mainMenu').removeClass('stage-center').addClass('stage-bottom').addClass('stage-left').removeClass('stage-bottom');
+                    $('.page.stage-center').addClass('stage-right').removeClass('stage-center');
+                    $('#stats').removeClass('stage-top').addClass('stage-center');
+                    $('.backIcon').show();
+                });
+
+                $('.saveMoment').tap(function() {
+                    saveLoss();
+                });
+                $('.swipeHolder').on("swipeLeft", ".swipeElement", function() {
+                    var swipeHolder = $(this).closest('.swipeHolder');
+                    var swipePosition = parseInt(swipeHolder.data('position'));
+                    var swipeSize = parseInt(swipeHolder.children('.swipeElement').size());
+
+                    if (swipePosition < swipeSize) {
+                        swipePosition += 1;
+                        $(this).removeClass('stage-center').addClass('stage-left');
+                        $(this).next().addClass('stage-center').removeClass('stage-right');
+                        swipeHolder.find('.indicators .active').removeClass('active').next().addClass('active');
+                        swipeHolder.data('position', swipePosition);
+                    }
+                });
+                $('.swipeHolder').on("swipeRight", ".swipeElement", function() {
+                    var swipeHolder = $(this).closest('.swipeHolder');
+                    var swipePosition = parseInt(swipeHolder.data('position'));
+
+                    if (swipePosition > 1) {
+                        swipePosition -= 1;
+                        $(this).removeClass('stage-center').addClass('stage-right');
+                        $(this).prev().addClass('stage-center').removeClass('stage-left');
+                        swipeHolder.find('.indicators .active').removeClass('active').prev().addClass('active');
+                        swipeHolder.data('position', swipePosition);
+                    }
+                });
+                $('.loss').tap(function() {
+                    trackLoss();
+                    releaseMoment();
+                });
+                $('.backIcon').tap(function() {
+                    if (lastPage != null) {
+                        changePage(lastPage);
+                        lastPage = null;
+                    } else {
+                        changePage("home");
+                    }
+                });
+                $('.win').tap(function() {
+                    trackWin();
+                    releaseMoment();
+                });
+                createDatabase();
+                updateConfig();
+            }
+
+            function createDatabase() {
+                dbShell = window.openDatabase("DohMoments", 2, "DohMoments", 1000000);
+                dbShell.transaction(setupTable, dbErrorHandler, getEntries);
+            }
+
+            function setupTable(tx) {
+                tx.executeSql("CREATE TABLE IF NOT EXISTS foodItems(id INTEGER PRIMARY KEY AUTOINCREMENT,title,momentCount INTEGER,photo)");
+                tx.executeSql("CREATE TABLE IF NOT EXISTS moments(id INTEGER PRIMARY KEY AUTOINCREMENT,itemId INTEGER,type INTEGER,created)");
+                tx.executeSql("CREATE TABLE IF NOT EXISTS config(key PRIMARY KEY,value)");
+            }
+
+            function dbErrorHandler(err) {
+                alert("DB Error: " + err.message + "\nCode=" + err.code);
+            }
+
+            function getEntries() {
+                dbShell.transaction(function(tx) {
+                    tx.executeSql("select * from foodItems order by momentCount desc", [], renderEntries, dbErrorHandler);
+                }, dbErrorHandler);
+            }
+
+            function updateConfig() {
+                dbShell.transaction(function(tx) {
+                    tx.executeSql("select * from config", [], updateConfigCallback, dbErrorHandler);
+                }, dbErrorHandler);
+            }
+
+            function updateConfigCallback(tx, results) {
+                var currentDate = new Date().toJSON().slice(0, 16);
+
+                if (results.rows.length == 0) {
+                    dbShell.transaction(function(tx) {
+                        tx.executeSql("INSERT INTO config(key,value) values (?,?)", ["deviceId", device.uuid], emptyCallback, dbErrorHandler);
+                        tx.executeSql("INSERT INTO config(key,value) values (?,?)", ["phone", device.platform], emptyCallback, dbErrorHandler);
+                        tx.executeSql("INSERT INTO config(key,value) values (?,?)", ["signedUp", currentDate], emptyCallback, dbErrorHandler);
+                        tx.executeSql("INSERT INTO config(key,value) values (?,?)", ["lostControl", "0"], emptyCallback, dbErrorHandler);
+                    }, dbErrorHandler);
+                    appConfig.phone = device.phone;
+                    appConfig.deviceId = device.uuid;
+                    appConfig.signedUp = currentDate;
+                    appConfig.lostControl = 0;
+                    populateFoodItems();
+                } else {
+                    for (var i = 0; i < results.rows.length; i++) {
+                        if (results.rows.item(i).key == "phone") {
+                            appConfig.phone = results.rows.item(i).value;
+                        }
+                        if (results.rows.item(i).key == "deviceId") {
+                            appConfig.deviceId = results.rows.item(i).value;
+                        }
+                        if (results.rows.item(i).key == "signedUp") {
+                            appConfig.signedUp = results.rows.item(i).value;
+                        }
+                        if (results.rows.item(i).key == "lostControl") {
+                            appConfig.lostControl = results.rows.item(i).value;
+                        }
+                    }
+                }
+            }
+
+            function renderEntries(tx, results) {
+//                        alert('Rendering ' + results.rows.length);
+//                        if (results.rows.length == 0) {
+//                            document.getElementById('mainContent').innerHTML = '<p>You currently do not have any notes.</p>';
+//                        } else {
+//                            var s = "";
+//                            for (var i = 0; i < results.rows.length; i++) {
+//                                s += "<li><a href='edit.html?id=" + results.rows.item(i).id + "'>" + results.rows.item(i).title + "</a></li>";
+//                            }
+//                            document.getElementById('mainContent').innerHTML = s;
+//                        }
+                return true;
+            }
+
+            function saveNote(note, cb) {
+                //Sometimes you may want to jot down something quickly....
+                if (note.title == "")
+                    note.title = "[No Title]";
+                dbShell.transaction(function(tx) {
+                    if (note.id == "")
+                        tx.executeSql("insert into notes(title,body,updated) values(?,?,?)", [note.title, note.body, new Date()]);
+                    else
+                        tx.executeSql("update notes set title=?, body=?, updated=? where id=?", [note.title, note.body, new Date(), note.id]);
+                }, dbErrorHandler, cb);
+            }
+
+            function emptyCallback() {
+                return true;
+            }
+
+
+            var foodItems = [
+                ['Pizza', 0, 'img/pizza.jpg'],
+                ['Hamburger', 0, 'img/hamburger.jpg'],
+                ['Coca-cola/other soda', 0, 'img/coke.jpg'],
+                ['Chocolate', 0, 'img/chocolate.jpg'],
+                ['Biscuits', 0, 'img/biscuits.jpg'],
+//              ['Sweets', 0, 'img/sweets.jpg'], 
+                ['Chips / popcorn', 0, 'img/chips.jpg'],
+                ['Bakery (cake/pastries)', 0, 'img/cake.jpg'],
+            ];
+
+            function populateFoodItems() {
+                dbShell.transaction(function(tx) {
+                    for (index in foodItems) {
+                        tx.executeSql("INSERT INTO foodItems(title,momentCount,photo) values (?,?, ?)", foodItems[index], emptyCallback, dbErrorHandler);
+
+                    }
+                }, dbErrorHandler);
+            }
+
+
+        </script>
+    </body>
+</html>
